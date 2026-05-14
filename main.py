@@ -1,21 +1,26 @@
 import pandas as pd
 
-df_2021 = pd.read_excel("data/LEM 2021.xlsx", header=None, skiprows=2, usecols=range(14), nrows=42)
-df_2021_map = {
-    df_2021.iloc[0][0].strip(): int(df_2021.iloc[18][13]),
-    df_2021.iloc[18][0].strip(): int(df_2021.iloc[23][13]),
-    df_2021.iloc[23][0].strip(): int(df_2021.iloc[27][13]),
-    df_2021.iloc[27][0].strip(): int(df_2021.iloc[41][13])
-}
-df_2021_desd_tec = df_2021.iloc[:18].copy()
-df_2021_profissi = df_2021.iloc[18:23].copy()
-df_2021_saude = df_2021.iloc[23:27].copy()
-df_2021_educacao = df_2021.iloc[27:].copy()
+def read(path: str) -> pd.DataFrame:
+    data: pd.DataFrame = pd.read_excel(path, header=None, skiprows=2, usecols=range(13), nrows=41)    
+    data.set_index(0, inplace=True)
+    data.index = data.index.astype(str).str.strip()
+    data.columns = data.iloc[0, :].to_list()
+    data = data.drop(
+        labels=["DESDOBRAMENTOS TÉCNICOS", "PROFISSIONALIZAÇÃO", "SAÚDE", "EDUCAÇÃO", "Ensino infantil", "Ensino regular", "Ensino EJA", "SCFV"], 
+        errors='ignore'
+    )
+    data.index.name = "index"
+    data.fillna(0, inplace=True)
+    return data
 
+if __name__ == '__main__':
+    df_2021: pd.DataFrame = read("data/LEM 2021.xlsx")
+    df_2022: pd.DataFrame = read("data/LEM 2022 (1).xlsx")
+    df_2023: pd.DataFrame = read("data/LEM 2023.xlsx")
+    df_2024: pd.DataFrame = read("data/LEM 2024 (1).xlsx")
+    df_2025: pd.DataFrame = read("data/LEM 2025 1.xlsx")
 
-print()
-# print(df_2021)
-print(df_2021_map)
-
-
-print(df_2021_educacao)
+    for df in [df_2021, df_2022, df_2023, df_2024, df_2025]:
+        print(df.shape)
+    
+    
