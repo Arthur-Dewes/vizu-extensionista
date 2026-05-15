@@ -1,6 +1,6 @@
 import sys
-import pandas as pd
 import unicodedata
+import pandas as pd
 
 def normalize_text(index: pd.Index) -> pd.Index:
     def _normalize(s: str) -> str:
@@ -9,7 +9,7 @@ def normalize_text(index: pd.Index) -> pd.Index:
     return index.map(_normalize)
 
 def read(path: str) -> pd.DataFrame:
-    data: pd.DataFrame = pd.read_excel(path, header=None, skiprows=2, usecols=range(13), nrows=41)    
+    data: pd.DataFrame = pd.read_excel(path, header=None, skiprows=2, usecols=range(13), nrows=41) # type: ignore
     data.set_index(0, inplace=True)
     data.index = data.index.astype(str).str.strip()
     data.columns = data.iloc[0, :].to_list()
@@ -32,13 +32,14 @@ def read(path: str) -> pd.DataFrame:
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
+        print("Passe as tabelas em ordem cronológica")
         sys.exit(1)
 
     paths = sys.argv[1:]
-    dataframes = [read(path) for path in paths]
+    dataframes = {2021 + i: read(path) for i, path in enumerate(paths)}
 
-    ref = dataframes[0].shape
-    for i, df in enumerate(dataframes):
-        assert df.shape == ref, f"Erro na tabela da posição {i}: esperado {ref}, mas obteve {df.shape}"
-
-    print(dataframes[0])
+    ref = dataframes[2021].shape
+    for year, df in dataframes.items():
+        assert df.shape == ref, f"Erro na tabela do ano {year}: esperado {ref}, mas obteve {df.shape}"
+    
+    print(dataframes[2021])
