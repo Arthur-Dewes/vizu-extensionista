@@ -9,6 +9,13 @@ def read(path: str) -> pd.DataFrame:
         labels=["DESDOBRAMENTOS TÉCNICOS", "PROFISSIONALIZAÇÃO", "SAÚDE", "EDUCAÇÃO", "Ensino infantil", "Ensino regular", "Ensino EJA", "SCFV"], 
         errors='ignore'
     )
+    for idx, ed in enumerate([" (Ensino infantil)", " (Ensino regular)", " (Ensino EJA)", " (SCFV)"]):
+        indexes = list(data.index)
+        pos_matriculados = 24 + (idx * 2)
+        pos_aguardando = 25 + (idx * 2)
+        indexes[pos_matriculados] = f"{indexes[pos_matriculados]}{ed}"
+        indexes[pos_aguardando] = f"{indexes[pos_aguardando]}{ed}"
+        data.index = indexes    
     data.index.name = "index"
     data.fillna(0, inplace=True)
     return data
@@ -23,4 +30,4 @@ if __name__ == '__main__':
     for df in [df_2021, df_2022, df_2023, df_2024, df_2025]:
         print(df.shape)
     
-    
+    print(df_2021)
