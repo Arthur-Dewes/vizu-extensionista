@@ -27,7 +27,7 @@ def read(path: str) -> pd.DataFrame:
     data.index = normalize_text(data.index)
     data.index.name = "index"
     data.fillna(0, inplace=True)
-
+    data['TOTAL'] = data.apply(pd.to_numeric, errors='coerce').sum(axis=1)
     return data
 
 if __name__ == '__main__':
