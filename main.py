@@ -1,4 +1,5 @@
 import pandas as pd
+import plotly.express as px
 
 def read(path: str) -> pd.DataFrame:
     data: pd.DataFrame = pd.read_excel(path, header=None, skiprows=2, usecols=range(13), nrows=41)    
@@ -21,13 +22,16 @@ def read(path: str) -> pd.DataFrame:
     return data
 
 if __name__ == '__main__':
-    df_2021: pd.DataFrame = read("data/LEM 2021.xlsx")
-    df_2022: pd.DataFrame = read("data/LEM 2022 (1).xlsx")
-    df_2023: pd.DataFrame = read("data/LEM 2023.xlsx")
-    df_2024: pd.DataFrame = read("data/LEM 2024 (1).xlsx")
-    df_2025: pd.DataFrame = read("data/LEM 2025 1.xlsx")
-
-    for df in [df_2021, df_2022, df_2023, df_2024, df_2025]:
-        print(df.shape)
+    data = {
+        2021: read("data/LEM 2021.xlsx"),
+        2022: read("data/LEM 2022 (1).xlsx"),
+        2023: read("data/LEM 2023.xlsx"),
+        2024: read("data/LEM 2024 (1).xlsx"),
+        2025: read("data/LEM 2025 1.xlsx")
+    }
     
-    print(df_2021)
+    sum_per_column = {}
+    for df in data.values():
+        print(df.shape)
+
+    print(data[2021])
