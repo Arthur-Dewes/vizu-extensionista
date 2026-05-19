@@ -3,8 +3,11 @@ name = "aula-vizu"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = "==3.12.*"
 dependencies = [
     "openpyxl>=3.1.5",
-    "pandas>=3.0.2",
+    "pandas>=2.3.3",
+    "plotly>=6.7.0",
+    "setuptools<70.0.0",
+    "ydata-profiling==4.18.4",
 ]
