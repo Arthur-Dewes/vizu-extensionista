@@ -4,7 +4,7 @@
 main.py <ano_inicial> <arquivo1> [arquivo2 ...]
 ```
 
-### Exemplo com uv
+### Rodar preprocessamento
 
 ```bash
 uv run main.py 2021 \
@@ -16,3 +16,14 @@ uv run main.py 2021 \
 ```
 
 > Os arquivos devem ser passados em **ordem cronológica**, a partir do `ano_inicial`.
+
+### Rodar vizualizações
+
+```bash
+uv run viz.py IPP_LEMs.csv # abre em http://127.0.0.1:8050
+```
+
+### Requirements
+
+python 3.12
+requirements.txt

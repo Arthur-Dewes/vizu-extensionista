@@ -41,15 +41,16 @@ def read(path: str) -> pd.DataFrame:
     data['TOTAL'] = data[numeric_cols].sum(axis=1)
     return data
 
-if __name__ == '__main__':
+
+def main() -> None:
     if len(sys.argv) < 3:
         print("Uso: script.py <ano_inicial> <tabela1> <tabela2>")
         sys.exit(1)
-    
+
     starting_year: int = int(sys.argv[1])
     paths: list[str] = sys.argv[2:]
     dataframes: dict[int, pd.DataFrame] = {starting_year + i: read(path) for i, path in enumerate(paths)}
-    
+
     ref = dataframes[starting_year].shape
     for year, df in dataframes.items():
         assert df.shape == ref, f"Erro na tabela do ano {year}: esperado {ref[0]} linhas e {ref[1]} colunas, mas obteve {df.shape[0]} linhas e {df.shape[1]} colunas"
@@ -59,10 +60,14 @@ if __name__ == '__main__':
         df["ANO"] = pd.array([year] * len(df), dtype="Int64")
     df_final = pd.concat([dataframes[i] for i in range(starting_year, starting_year + len(dataframes))])
 
-    profile = ProfileReport(df_final, title="Relatório LEM", correlations={"auto": {"calculate": False}}) # type: ignore
-    profile.to_file("relatorio.html") # type: ignore
+    profile = ProfileReport(df_final, title="Relatório LEM", correlations={"auto": {"calculate": False}})  # type: ignore
+    profile.to_file("relatorio.html")  # type: ignore
 
     df_final.fillna(0, inplace=True)
     df_final.to_csv("IPP_LEMs.csv", index=False)
+
+
+if __name__ == '__main__':
+    main()
 
 
