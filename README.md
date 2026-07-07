@@ -22,4 +22,5 @@ python3 viz.py IPP_LEMs.csv # abre em http://127.0.0.1:8050
 ### Requirements
 
 python 3.12
+
 requirements.txt
