@@ -261,7 +261,7 @@ def fig_heat(df: pd.DataFrame, anos: list) -> go.Figure:
     )
     return _apply_theme(
         fig,
-        "Intensidade de Atendimentos por Mês e Ano",
+        "Quantidade de Atendimentos por Mês e Ano",
         xaxis=dict(title="Mês", gridcolor=BORDER),
         yaxis=dict(title="Ano", gridcolor=BORDER, tickmode="array", tickvals=anos_ord),
     )
