@@ -1,7 +1,7 @@
 import sys
 import unicodedata
 import pandas as pd
-from data_profiling import ProfileReport
+from ydata_profiling import ProfileReport
 
 def normalize_text(series: pd.Series) -> pd.Series:
     def _normalize(s: str) -> str:
