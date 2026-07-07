@@ -3,250 +3,369 @@ import plotly.graph_objects as go
 import dash
 from dash import dcc, html, Input, Output
 
-YEARS       = [2021, 2022, 2023, 2024, 2025]
-YEAR_COLORS = ["#4E9AF1", "#F4A261", "#2A9D8F", "#E76F51", "#8338EC"]
-YEAR_COLOR  = dict(zip(YEARS, YEAR_COLORS))
 
-BG          = "#0F1117"
-CARD_BG     = "#1A1D27"
-BORDER      = "#2A2D3E"
-TEXT        = "#E8EAF6"
-MUTED       = "#7B7F9E"
-ACCENT      = "#4E9AF1"
+BG = "#0F1117"
+CARD_BG = "#1A1D27"
+BORDER = "#2A2D3E"
+TEXT = "#E8EAF6"
+MUTED = "#7B7F9E"
 
-MONTHS = ["JAN","FEV","MAR","ABR","MAI","JUN","JUL","AGO","SET","OUT","NOV","DEZ"]
-
-FONT = dict(family="'IBM Plex Mono', 'Courier New', monospace", color=TEXT)
-
-PLOT_LAYOUT = dict(
-    paper_bgcolor="rgba(0,0,0,0)",
-    plot_bgcolor="rgba(0,0,0,0)",
-    font=FONT,
-    margin=dict(l=10, r=10, t=40, b=10),
-    legend=dict(
-        bgcolor="rgba(0,0,0,0)",
-        font=dict(color=MUTED, size=11),
-        orientation="h",
-        yanchor="bottom", y=1.02,
-        xanchor="left",   x=0,
-    ),
-    xaxis=dict(gridcolor=BORDER, zerolinecolor=BORDER, tickfont=dict(color=MUTED)),
-    yaxis=dict(gridcolor=BORDER, zerolinecolor=BORDER, tickfont=dict(color=MUTED)),
-)
+MONTHS = ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"]
+YEARS = [2021, 2022, 2023, 2024, 2025]
+YEAR_COLORS = {2021: "#4E9AF1", 2022: "#F4A261", 2023: "#2A9D8F", 2024: "#E76F51", 2025: "#8338EC"}
 
 
 def load_data(path: str = "IPP_LEMs.csv") -> pd.DataFrame:
     return pd.read_csv(path)
 
 
-def atendimentos_mensais(df: pd.DataFrame, anos: list[int]) -> go.Figure:
-    """Barras empilhadas: atendimentos totais por mês x ano."""
+def get_macro_area(categoria: str) -> str:
+    categoria = str(categoria).upper()
+    if "INTERFACE" in categoria:
+        return "Interfaces de Rede"
+    elif "ATENDIMENTO" in categoria or "VISITAS" in categoria or "PIAS" in categoria:
+        return "Atendimentos e Relatórios"
+    elif "SAUDE" in categoria or "INTERNACOES" in categoria:
+        return "Saúde"
+    elif "ENSINO" in categoria or "SCFV" in categoria or "REFORCO" in categoria:
+        return "Educação"
+    elif "CURSO" in categoria or "MERCADO" in categoria:
+        return "Profissionalização"
+    elif "INGRESSOS" in categoria or "DESLIGAMENTOS" in categoria or "EVASAO" in categoria or "TRANSFERENCIAS" in categoria:
+        return "Dinâmica Populacional"
+    return "Outros / Gestão"
+
+
+def kpis(df):
+    def total(cat):
+        return int(df.loc[df.categorias == cat, "TOTAL"].sum())
+
+    atend = total("ATENDIMENTOS INDVIDUAL") + total("ATEDIMENTO FAMILIAR")
+    ingr = total("NOVOS INGRESSOS")
+    desl = total("DESLIGAMENTOS")
+    mats = df[df.categorias.str.contains("MATRICULADOS", na=False)]["TOTAL"].sum()
+    return atend, ingr, desl, int(mats)
+
+
+def fig_linhas(df, anos):
+    fig = go.Figure()
+    for nome, cat, col in [
+        ("Individual", "ATENDIMENTOS INDVIDUAL", "#4E9AF1"),
+        ("Familiar", "ATEDIMENTO FAMILIAR", "#F4A261"),
+    ]:
+        x, y = [], []
+        for a in anos:
+            r = df[(df.ANO == a) & (df.categorias == cat)]
+            for m in MONTHS:
+                x.append(f"{m}/{a}")
+                y.append(0 if r.empty else r[m].sum())
+        fig.add_trace(go.Scatter(x=x, y=y, name=nome, mode="lines", line=dict(color=col)))
+    fig.update_layout(
+        template="plotly_dark",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color=TEXT),
+        title="Atendimentos",
+        margin=dict(t=50, l=10, r=10, b=10),
+    )
+    return fig
+
+
+def fig_heat(df, anos):
+    cats = ["ATENDIMENTOS INDVIDUAL", "ATEDIMENTO FAMILIAR"]
+    z = []
+    for a in anos:
+        r = df[(df.ANO == a) & (df.categorias.isin(cats))]
+        z.append(r[MONTHS].sum().tolist())
+    fig = go.Figure(go.Heatmap(z=z, x=MONTHS, y=anos, colorscale="Viridis"))
+    fig.update_layout(
+        template="plotly_dark",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color=TEXT),
+        title="Heatmap",
+        margin=dict(t=50, l=10, r=10, b=10),
+    )
+    return fig
+
+
+def fig_rank(df, anos):
+    d = df[df.ANO.isin(anos)].groupby("categorias")["TOTAL"].sum().sort_values().tail(10)
+    fig = go.Figure(go.Bar(x=d.values, y=d.index, orientation="h", marker_color="#4E9AF1"))
+    fig.update_layout(
+        template="plotly_dark",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color=TEXT),
+        title="Top categorias",
+        margin=dict(t=50, l=10, r=10, b=10),
+    )
+    return fig
+
+
+def fig_edu(df, anos):
+    mods = {
+        "Infantil": ("MATRICULADOS (ENSINO INFANTIL)", "AGUARDANDO VAGA (ENSINO INFANTIL)"),
+        "Regular": ("MATRICULADOS (ENSINO REGULAR)", "AGUARDANDO VAGA (ENSINO REGULAR)"),
+        "EJA": ("MATRICULADOS (ENSINO EJA)", "AGUARDANDO VAGA (ENSINO EJA)"),
+        "SCFV": ("MATRICULADOS (SCFV)", "AGUARDANDO VAGA (SCFV)"),
+    }
+    fig = go.Figure()
+    for mod, (a, b) in mods.items():
+        vals = []
+        for ano in anos:
+            x = df[df.ANO == ano]
+            vals.append(x.loc[x.categorias.isin([a, b]), "TOTAL"].sum())
+        fig.add_trace(go.Bar(name=mod, x=anos, y=vals))
+    fig.update_layout(
+        barmode="group",
+        template="plotly_dark",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color=TEXT),
+        title="Educação",
+        margin=dict(t=50, l=10, r=10, b=10),
+    )
+    return fig
+
+
+def fig_dinamica_populacional(df: pd.DataFrame, anos: list) -> go.Figure:
+    """Gráfico de Linhas para Entradas, Saídas e Evasões."""
+    cats = ["NOVOS INGRESSOS", "DESLIGAMENTOS", "EVASAO", "TRANSFERENCIAS"]
+    cores = {"NOVOS INGRESSOS": "#2A9D8F", "DESLIGAMENTOS": "#F4A261", "EVASAO": "#E76F51", "TRANSFERENCIAS": "#4E9AF1"}
+
+    sub = df[df["ANO"].isin(anos)]
+    anos_ord = sorted(anos)
+
+    fig = go.Figure()
+    for cat in cats:
+        valores = [sub[(sub["ANO"] == a) & (sub["categorias"] == cat)]["TOTAL"].sum() for a in anos_ord]
+        fig.add_trace(
+            go.Scatter(
+                x=anos_ord,
+                y=valores,
+                name=cat.title(),
+                mode="lines+markers",
+                line=dict(color=cores[cat], width=3),
+                marker=dict(size=8),
+            )
+        )
+
+    fig.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color=TEXT, size=10),
+        title="Dinâmica Populacional",
+        xaxis=dict(gridcolor=BORDER, tickmode="array", tickvals=anos_ord),
+        yaxis=dict(gridcolor=BORDER),
+        margin=dict(t=40, l=10, r=10, b=10),
+        legend=dict(orientation="h", yanchor="bottom", y=-0.35, font=dict(size=8)),
+    )
+    return fig
+
+
+def fig_profissionalizacao(df: pd.DataFrame, anos: list) -> go.Figure:
+    """Gráfico de Barras Agrupadas contrastando Encaminhados vs Inseridos."""
     cats = [
-        "ATENDIMENTOS INDVIDUAL",
-        "ATEDIMENTO FAMILIAR",
+        "ENCAMINHADOS PARA CURSO PROFISSIONALIZANTE",
+        "INSERIDOS EM CURSO PROFISSIONALIZANTE",
+        "ENCAMINHADO PARA MERCADO DE TRABALHO",
+        "INSERIDO NO MERCADO DE TRABALHO",
+    ]
+
+    sub = df[df["ANO"].isin(anos)]
+    totais = {cat: sub[sub["categorias"] == cat]["TOTAL"].sum() for cat in cats}
+
+    fig = go.Figure(
+        data=[
+            go.Bar(
+                name="Cursos Prof.",
+                x=["Encaminhados", "Inseridos"],
+                y=[
+                    totais["ENCAMINHADOS PARA CURSO PROFISSIONALIZANTE"],
+                    totais["INSERIDOS EM CURSO PROFISSIONALIZANTE"],
+                ],
+                marker_color="#8338EC",
+            ),
+            go.Bar(
+                name="Mercado Trab.",
+                x=["Encaminhados", "Inseridos"],
+                y=[
+                    totais["ENCAMINHADO PARA MERCADO DE TRABALHO"],
+                    totais["INSERIDO NO MERCADO DE TRABALHO"],
+                ],
+                marker_color="#4E9AF1",
+            ),
+        ]
+    )
+
+    fig.update_layout(
+        barmode="group",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color=TEXT, size=10),
+        title="Encaminhamentos vs Inserções",
+        yaxis=dict(gridcolor=BORDER),
+        margin=dict(t=40, l=10, r=10, b=10),
+        legend=dict(orientation="h", yanchor="bottom", y=-0.35, font=dict(size=8)),
+    )
+    return fig
+
+
+def fig_radar_interfaces(df: pd.DataFrame, anos: list) -> go.Figure:
+    """Gráfico de Radar mostrando o perfil das Interfaces."""
+    interfaces = [
         "INTERFACE COM REDE SOCIOASSISTENCIAL",
         "INTERFACE COM JUDICIARIO",
         "INTERFACE COM SAUDE",
         "INTERFACE COM EDUCACAO",
-        "SAUDE MENTAL",
-        "SAUDE CLINICA",
-        "INTERNACOES",
     ]
-    sub = df[df["categorias"].isin(cats) & df["ANO"].isin(anos)]
+    labels = ["Rede Socioassistencial", "Judiciário", "Saúde", "Educação"]
 
     fig = go.Figure()
     for ano in sorted(anos):
-        row = sub[sub["ANO"] == ano][MONTHS].sum()
-        fig.add_trace(go.Bar(
-            name=str(ano),
-            x=MONTHS,
-            y=row.values,
-            marker_color=YEAR_COLOR[ano],
-            marker_line_width=0,
-            hovertemplate=f"<b>{ano}</b><br>%{{x}}: %{{y}}<extra></extra>",
-        ))
+        sub = df[df["ANO"] == ano]
+        valores = [sub.loc[sub["categorias"] == i, "TOTAL"].sum() for i in interfaces]
+
+        valores.append(valores[0])
+        labels_plot = labels + [labels[0]]
+
+        fig.add_trace(
+            go.Scatterpolar(
+                r=valores,
+                theta=labels_plot,
+                fill="toself",
+                name=str(ano),
+                line_color=YEAR_COLORS.get(ano),
+            )
+        )
 
     fig.update_layout(
-        **PLOT_LAYOUT,
-        barmode="stack",
-        title=dict(text="Atendimentos mensais por ano", font=dict(color=TEXT, size=14)),
+        polar=dict(
+            radialaxis=dict(visible=True, gridcolor=BORDER),
+            angularaxis=dict(gridcolor=BORDER),
+            bgcolor="rgba(0,0,0,0)",
+        ),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color=TEXT, size=10),
+        title="Perfil de Interfaces de Rede",
+        margin=dict(t=40, b=10, l=30, r=30),
+        legend=dict(orientation="h", yanchor="bottom", y=-0.25, font=dict(size=8)),
     )
     return fig
 
 
-def demanda_educacional(df: pd.DataFrame, anos: list[int]) -> go.Figure:
-    """Áreas empilhadas: demanda educacional (matriculados + aguardando)."""
-    modalidades = {
-        "Ensino Infantil": ("MATRICULADOS (ENSINO INFANTIL)", "AGUARDANDO VAGA (ENSINO INFANTIL)"),
-        "Ensino Regular":  ("MATRICULADOS (ENSINO REGULAR)",  "AGUARDANDO VAGA (ENSINO REGULAR)"),
-        "EJA":             ("MATRICULADOS (ENSINO EJA)",       "AGUARDANDO VAGA (ENSINO EJA)"),
-        "SCFV":            ("MATRICULADOS (SCFV)",             "AGUARDANDO VAGA (SCFV)"),
-    }
-    MODAL_COLORS = ["#4E9AF1", "#2A9D8F", "#F4A261", "#8338EC"]
+def build_app(csv="IPP_LEMs.csv"):
+    df = load_data(csv)
+    app = dash.Dash(__name__)
+    a, i, d, m = kpis(df)
 
-    sub = df[df["ANO"].isin(anos)]
-    anos_ord = sorted(anos)
+    def card(t, v, sub=None):
+        children = [html.H4(t), html.H2(f"{v:,}".replace(",", "."))]
+        if sub:
+            children.append(html.P(sub, style={"color": MUTED, "fontSize": "12px", "margin": "0"}))
+        return html.Div(
+            children,
+            style={
+                "background": CARD_BG,
+                "padding": "15px",
+                "border": "1px solid " + BORDER,
+                "borderRadius": "8px",
+                "flex": "1",
+            },
+        )
 
-    fig = go.Figure()
-    for (mod, (mat, agu)), color in zip(modalidades.items(), MODAL_COLORS):
-        totais = []
-        for ano in anos_ord:
-            bloco = sub[sub["ANO"] == ano]
-            val_mat = bloco.loc[bloco["categorias"] == mat, "TOTAL"].sum()
-            val_agu = bloco.loc[bloco["categorias"] == agu, "TOTAL"].sum()
-            totais.append(val_mat + val_agu)
+    def graph_box(style_extra=None):
+        base = {
+            "background": CARD_BG,
+            "border": "1px solid " + BORDER,
+            "borderRadius": "8px",
+            "padding": "10px",
+        }
+        if style_extra:
+            base.update(style_extra)
+        return base
 
-        fig.add_trace(go.Scatter(
-            name=mod,
-            x=anos_ord,
-            y=totais,
-            stackgroup="one",
-            mode="lines",
-            line=dict(color=color, width=1.5),
-            fillcolor=color.replace(")", ",0.45)").replace("rgb(", "rgba("),
-            hovertemplate=f"<b>{mod}</b><br>%{{x}}: %{{y}}<extra></extra>",
-        ))
-
-    fig.update_layout(
-        **{k: v for k, v in PLOT_LAYOUT.items() if k != "xaxis"},
-        title=dict(text="Demanda educacional por modalidade (matriculados + fila)", font=dict(color=TEXT, size=14)),
-        xaxis=dict(**PLOT_LAYOUT["xaxis"], tickmode="array", tickvals=anos_ord),
+    app.layout = html.Div(
+        style={"background": BG, "color": TEXT, "padding": "20px", "minHeight": "100vh"},
+        children=[
+            html.H2("Dashboard LEM"),
+            dcc.Checklist(
+                id="anos",
+                options=[{"label": y, "value": y} for y in YEARS],
+                value=YEARS,
+                inline=True,
+                style={"marginBottom": "15px"},
+            ),
+            html.Div(
+                [
+                    card("Atendimentos", a, sub="Individual + Familiar"),
+                    card("Ingressos", i),
+                    card("Desligamentos", d),
+                    card("Matrículas", m),
+                ],
+                style={"display": "flex", "gap": "10px", "marginBottom": "20px"},
+            ),
+            html.Div(
+                dcc.Graph(id="g1", style={"height": "400px"}),
+                style=graph_box({"marginBottom": "15px"}),
+            ),
+            html.Div(
+                dcc.Graph(id="g2", style={"height": "400px"}),
+                style=graph_box({"marginBottom": "15px"}),
+            ),
+            html.Div(
+                dcc.Graph(id="g3", style={"height": "400px"}),
+                style=graph_box({"marginBottom": "15px"}),
+            ),
+            html.Div(
+                dcc.Graph(id="g4", style={"height": "400px"}),
+                style=graph_box({"marginBottom": "25px"}),
+            ),
+            html.Div(
+                [
+                    html.Div(
+                        dcc.Graph(id="g5", style={"height": "100%", "width": "100%"}),
+                        style=graph_box({"aspectRatio": "1 / 1", "flex": "1", "minWidth": "0"}),
+                    ),
+                    html.Div(
+                        dcc.Graph(id="g6", style={"height": "100%", "width": "100%"}),
+                        style=graph_box({"aspectRatio": "1 / 1", "flex": "1", "minWidth": "0"}),
+                    ),
+                    html.Div(
+                        dcc.Graph(id="g7", style={"height": "100%", "width": "100%"}),
+                        style=graph_box({"aspectRatio": "1 / 1", "flex": "1", "minWidth": "0"}),
+                    ),
+                ],
+                style={"display": "flex", "gap": "15px"},
+            ),
+        ],
     )
-    return fig
-
-
-def individuais_vs_familiares(df: pd.DataFrame, anos: list[int]) -> go.Figure:
-    """Linhas: atendimentos individuais x familiares mês a mês."""
-    series = {
-        "Individual": ("ATENDIMENTOS INDVIDUAL", ACCENT),
-        "Familiar":   ("ATEDIMENTO FAMILIAR",    "#F4A261"),
-    }
-
-    sub = df[df["ANO"].isin(anos)]
-    anos_ord = sorted(anos)
-
-    fig = go.Figure()
-    for label, (cat, color) in series.items():
-        xs, ys = [], []
-        for ano in anos_ord:
-            bloco = sub[(sub["ANO"] == ano) & (sub["categorias"] == cat)]
-            for mes in MONTHS:
-                xs.append(f"{mes}/{ano}")
-                ys.append(int(bloco[mes].sum()) if not bloco.empty else 0)
-
-        fig.add_trace(go.Scatter(
-            name=label,
-            x=xs,
-            y=ys,
-            mode="lines+markers",
-            line=dict(color=color, width=2),
-            marker=dict(size=4, color=color),
-            hovertemplate=f"<b>{label}</b><br>%{{x}}: %{{y}}<extra></extra>",
-        ))
-
-    fig.update_layout(
-        **{k: v for k, v in PLOT_LAYOUT.items() if k != "xaxis"},
-        title=dict(text="Atendimentos individuais vs. familiares", font=dict(color=TEXT, size=14)),
-        xaxis=dict(gridcolor=BORDER, zerolinecolor=BORDER, tickangle=-45, tickfont=dict(color=MUTED, size=9)),
-    )
-    return fig
-
-
-def card(title: str, graph_id: str) -> html.Div:
-    return html.Div([
-        html.H3(title, style={
-            "margin": "0 0 12px 0",
-            "fontSize": "12px",
-            "letterSpacing": "0.12em",
-            "textTransform": "uppercase",
-            "color": MUTED,
-        }),
-        dcc.Graph(id=graph_id, config={"displayModeBar": False},
-                  style={"height": "340px"}),
-    ], style={
-        "background": CARD_BG,
-        "border": f"1px solid {BORDER}",
-        "borderRadius": "8px",
-        "padding": "20px",
-        "marginBottom": "20px",
-    })
-
-
-def build_app(csv_path: str = "IPP_LEMs.csv") -> dash.Dash:
-    df = load_data(csv_path)
-
-    app = dash.Dash(__name__, title="Fundação Pão dos Pobres — LEMs")
-
-    app.layout = html.Div([
-        # header
-        html.Div([
-            html.Div([
-                html.Span("FPP", style={
-                    "fontFamily": "'IBM Plex Mono', monospace",
-                    "fontSize": "22px",
-                    "fontWeight": "700",
-                    "color": ACCENT,
-                    "marginRight": "12px",
-                }),
-                html.Span("Fundação Pão dos Pobres · Análise de Dados LEMs", style={
-                    "color": MUTED,
-                    "fontSize": "13px",
-                }),
-            ], style={"display": "flex", "alignItems": "center"}),
-
-            # year filter
-            html.Div([
-                html.Label("Filtrar anos:", style={"color": MUTED, "fontSize": "11px", "marginRight": "10px"}),
-                dcc.Checklist(
-                    id="year-filter",
-                    options=[{"label": str(y), "value": y} for y in YEARS],
-                    value=YEARS,
-                    inline=True,
-                    style={"color": TEXT, "fontSize": "12px", "gap": "12px"},
-                    inputStyle={"marginRight": "4px", "accentColor": ACCENT},
-                ),
-            ], style={"display": "flex", "alignItems": "center"}),
-        ], style={
-            "display": "flex",
-            "justifyContent": "space-between",
-            "alignItems": "center",
-            "padding": "16px 24px",
-            "borderBottom": f"1px solid {BORDER}",
-            "marginBottom": "24px",
-        }),
-
-        # charts
-        html.Div([
-            card("Atendimentos mensais por ano",                "chart-atendimentos"),
-            card("Demanda educacional por modalidade",          "chart-educacao"),
-            card("Atendimentos individuais vs. familiares",     "chart-individual-familiar"),
-        ], style={"padding": "0 24px 24px"}),
-
-    ], style={
-        "background": BG,
-        "minHeight": "100vh",
-        "color": TEXT,
-        "fontFamily": "'IBM Plex Mono', 'Courier New', monospace",
-    })
 
     @app.callback(
-        Output("chart-atendimentos",      "figure"),
-        Output("chart-educacao",          "figure"),
-        Output("chart-individual-familiar","figure"),
-        Input("year-filter", "value"),
+        Output("g1", "figure"),
+        Output("g2", "figure"),
+        Output("g3", "figure"),
+        Output("g4", "figure"),
+        Output("g5", "figure"),
+        Output("g6", "figure"),
+        Output("g7", "figure"),
+        Input("anos", "value"),
     )
-    def update_charts(anos):
-        anos = anos or YEARS
+    def upd(anos):
         return (
-            atendimentos_mensais(df, anos),
-            demanda_educacional(df, anos),
-            individuais_vs_familiares(df, anos),
+            fig_linhas(df, anos),
+            fig_heat(df, anos),
+            fig_rank(df, anos),
+            fig_edu(df, anos),
+            fig_radar_interfaces(df, anos),
+            fig_dinamica_populacional(df, anos),
+            fig_profissionalizacao(df, anos),
         )
 
     return app
 
 
 if __name__ == "__main__":
-    import sys
-    csv = sys.argv[1] if len(sys.argv) > 1 else "IPP_LEMs.csv"
-    build_app(csv).run(debug=True)
+    build_app().run(debug=True)
